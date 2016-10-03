@@ -1,0 +1,72 @@
+
+var Beam = require('beam-client-node');
+var Interactive = require('beam-interactive-node');
+var rjs = require('robotjs');
+
+var channelId = 3705;
+var username = config.beam.ownername;
+var password = config.beam.ownerpass;
+var totals = [0, 0, 0, 0, 0];
+var tact;
+var joystick;
+
+var beam = new Beam();
+
+beam.use('password', {
+    username,
+    password,
+})
+.attempt()
+.then(() => beam.game.join(channelId))
+.then(res => createRobot(res))
+.then(robot => performRobotHandShake(robot))
+.then(robot => setupRobotEvents(robot))
+.catch(err => {
+    if (err.res) {
+        throw new Error('Error connecting to Interactive:' + err.res.body.mesage);
+    }
+    throw new Error('Error connecting to Interactive', err);
+});
+
+function createRobot(res) {
+    return new Interactive.Robot({
+        remote: res.body.address,
+        channel: channelId,
+        key: res.body.key,
+    });
+}
+
+function performRobotHandShake(robot) {
+    return new Promise((resolve, reject) => {
+        robot.handshake(err => {
+            if (err) {
+                reject(err);
+            }
+            resolve(robot);
+        });
+    });
+}
+
+function setupRobotEvents(robot) {
+    robot.on('report', report => {
+        tact = report.tactile;
+        for (var i = 0; i < report.tactile.length; i++) {
+            totals[report.tactile[i].id] += report.tactile[i].releaseFrequency;
+            if (tact[i].releaseFrequency >= 1) {
+
+                io.emit('tact', { id: report.tactile[i].id, freq: report.tactile[i].releaseFrequency });
+                interactiveButtons(report.tactile[i].id);
+
+            }
+        }
+    });
+    robot.on('error', err => {
+        throw new Error('There was an error in the Interactive connection', err);
+    });
+}
+
+function interactiveButtons(id) {
+    console.log(id);
+    console.log(totals);
+    //do your stuff here
+};
